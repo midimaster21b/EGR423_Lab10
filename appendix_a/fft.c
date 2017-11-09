@@ -2,7 +2,7 @@
 // Filename: fft.c
 //
 // Synopsis: Example FFT routine. Can run on nearly any CPU that
-//   supports a C compiler. This code calculates the FFT 
+//   supports a C compiler. This code calculates the FFT
 //   (decimation-in-time) of an N point complex data sequence.
 //
 //   This algorithm is based on the discussion in
@@ -15,46 +15,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include "fft.h"
-/* int main(argc,argv) */
-/* int argc; */
-/* char *argv[]; */
-/* { */
-/*     int M, N, i; */
-/*     COMPLEX *W;  // for twiddle factors */
-/*     COMPLEX *x;  // for input data */
-
-/*     if(argc != 2) */
-/*     { */
-/* 	fprintf(stderr,USE,argv[0]); */
-/* 	exit(-1); */
-/*     } */
-/*     M = atoi(argv[1]); */
-/*     N = pow(2.0, M); */
-
-/*     W = malloc(N*sizeof(COMPLEX)); */
-/*     x = malloc(N*sizeof(COMPLEX)); */
-
-/*     // read in data */
-/*     for(i = 0; i < N; i++) */
-/*     { */
-/* 	    scanf("%f", &x[i].re); */
-/* 	    x[i].im = 0.0; */
-/*     } */
-
-/*     // initialize real and imaginary parts of the twiddle factors  */
-/*     init_W(N, W); */
-    
-/*     // calculate the FFT of x[N]  */
-/*     fft_c(N, x, W); */
-
-/*     // display the results   */
-/*     printf("\n  i    real part    imag part \n\n"); */
-/*     for(i = 0 ; i < N ; i++)  */
-/*         printf("%3d %12.5f %12.5f \n", i, x[i].re, x[i].im); */
-/*     printf("\n"); */
-
-/*     return(0); */
-/* } */
 
 void fft_c(int n, COMPLEX *x, COMPLEX *W)
 ///////////////////////////////////////////////////////////////////////
@@ -67,52 +27,52 @@ void fft_c(int n, COMPLEX *x, COMPLEX *W)
 //
 // Calls:     Nothing
 //
-// Notes:     Bit-reversed address reordering of the sequence 
+// Notes:     Bit-reversed address reordering of the sequence
 //            is performed in this function.
 ///////////////////////////////////////////////////////////////////////
 {
     COMPLEX u, temp, tm;
     COMPLEX *Wptr;
 
-    int i, j, k, len, Windex; 
-    
+    int i, j, k, len, Windex;
+
     // perform fft butterfly
     Windex = 1;
     for(len = n/2 ; len > 0 ; len /= 2) {
-        Wptr = W;
-        for (j = 0 ; j < len ; j++) {
-            u = *Wptr;
-            for (i = j ; i < n ; i = i + 2*len) {
-                temp.re = x[i].re + x[i+len].re;
-                temp.im = x[i].im + x[i+len].im;
-                tm.re = x[i].re - x[i+len].re;
-                tm.im = x[i].im - x[i+len].im;             
-                x[i+len].re = tm.re*u.re - tm.im*u.im;
-                x[i+len].im = tm.re*u.im + tm.im*u.re;
-                x[i] = temp;
-            }
-            Wptr = Wptr + Windex;
-        }
-        Windex = 2*Windex;
+	Wptr = W;
+	for (j = 0 ; j < len ; j++) {
+	    u = *Wptr;
+	    for (i = j ; i < n ; i = i + 2*len) {
+		temp.re = x[i].re + x[i+len].re;
+		temp.im = x[i].im + x[i+len].im;
+		tm.re = x[i].re - x[i+len].re;
+		tm.im = x[i].im - x[i+len].im;
+		x[i+len].re = tm.re*u.re - tm.im*u.im;
+		x[i+len].im = tm.re*u.im + tm.im*u.re;
+		x[i] = temp;
+	    }
+	    Wptr = Wptr + Windex;
+	}
+	Windex = 2*Windex;
     }
-    
-    // rearrange data by bit reversed addressing 
+
+    // rearrange data by bit reversed addressing
     // this step must occur after the fft butterfly
     j = 0;
     for (i = 1; i < (n-1); i++) {
-        k = n/2;
-        while(k <= j) {
-            j -= k;
-            k /= 2;
-        }
-        j += k;
-        if (i < j) {
-            temp = x[j];
-            x[j] = x[i];
-            x[i] = temp;
-        }
+	k = n/2;
+	while(k <= j) {
+	    j -= k;
+	    k /= 2;
+	}
+	j += k;
+	if (i < j) {
+	    temp = x[j];
+	    x[j] = x[i];
+	    x[i] = temp;
+	}
     }
-    
+
 }  // end of fft_c function
 
 void init_W(int n, COMPLEX *W)
@@ -134,7 +94,7 @@ void init_W(int n, COMPLEX *W)
     float a = 2.0*MYPI/n;
 
     for(i = 0 ; i < n ; i++) {
-        W[i].re = (float) cos(-i*a);
-        W[i].im = (float) sin(-i*a);
+	W[i].re = (float) cos(-i*a);
+	W[i].im = (float) sin(-i*a);
     }
 }

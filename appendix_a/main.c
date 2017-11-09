@@ -1,6 +1,3 @@
-// Welch, Wright, & Morrow,
-// Real-time Digital Signal Processing, 2011
-
 ///////////////////////////////////////////////////////////////////////
 // Filename: main.c
 //
@@ -29,8 +26,6 @@ int main()
 
   // initialize DSP for EDMA operation
   DSP_Init_EDMA();
-
-  // call to StartUp not needed here
 
   // main loop here, process buffer when ready
   while(1) {

@@ -1,6 +1,3 @@
-// Welch, Wright, & Morrow,
-// Real-time Digital Signal Processing, 2011
-
 ///////////////////////////////////////////////////////////////////////
 // Filename: ISRs.c
 //
@@ -13,16 +10,9 @@
 #include "frames.h"
 #include "fft.h"
 
-//#define STEP_THREE
-#define STEP_FOUR
-#define STEP_FOUR_LEFT
-#define STEP_FOUR_RIGHT
-
-#define STEP_FIVE
-#define STEP_SIX
-
 #pragma DATA_SECTION (buffer, "CE0"); // allocate buffers in SDRAM
 Int16 buffer[NUM_BUFFERS][BUFFER_LENGTH];
+
 // there are 3 buffers in use at all times, one being filled from the McBSP,
 // one being operated on, and one being emptied to the McBSP
 // ready_index --> buffer ready for processing
@@ -40,32 +30,21 @@ volatile Int16 buffer_ready = 0, over_run = 0, ready_index = 0;
 #define EDMA_CONFIG_EVENT_MASK				3	// using events 0 (rx) and 1 (tx)
 #define EDMA_CONFIG_INTERRUPT_MASK			1	// interrupt on rx reload only
 
-#ifdef STEP_FOUR
 extern COMPLEX Twiddle_Factors[];
-#endif
-
-#ifdef STEP_FOUR_LEFT
 static COMPLEX Input_Left[BUFFER_COUNT] = { 0 };
-//static COMPLEX Output_Left[BUFFER_COUNT] = { 0 };
 static float Output_Magnitude_Left[BUFFER_COUNT] = { 0 };
-#endif
 
-#ifdef STEP_FOUR_RIGHT
 #pragma DATA_SECTION (Input_Right, "CE0"); // allocate buffers in SDRAM
 static COMPLEX Input_Right[BUFFER_COUNT] = { 0 };
 
 #pragma DATA_SECTION (Output_Magnitude_Right, "CE0"); // allocate buffers in SDRAM
 static float Output_Magnitude_Right[BUFFER_COUNT] = { 0 };
-#endif
 
-#ifdef STEP_SIX
 #pragma DATA_SECTION (Input_Total, "CE0"); // allocate buffers in SDRAM
-static COMPLEX Input_Total[BUFFER_COUNT] = { 0 };
+static COMPLEX Input_Total[BUFFER_COUNT] = { 0 }; // Summed left & right inputs
 
 #pragma DATA_SECTION (Output_Magnitude_Total, "CE0"); // allocate buffers in SDRAM
 static float Output_Magnitude_Total[BUFFER_COUNT] = { 0 };
-#endif
-
 
 void EDMA_Init()
 ////////////////////////////////////////////////////////////////////////
@@ -219,12 +198,11 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
 	float *pL = Left, *pR = Right;
 	Int32 i;
 
-	float maxL=*pL; // Used for step three & five
-	float maxR=*pR; // Used for step three & five
+	// Used for peak finding
+	float maxL = *pL;
+	float maxR = *pR; // Used for p
 
-#ifdef STEP_THREE
 	// Right values
-	float sumR=0;
 	float meanR=0;
 	float minR=*pR;
 	float varianceR=0;
@@ -236,150 +214,75 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
 	float minL=*pL;
 	float varianceL=0;
 	float averageMagL=0;
-#endif
-#ifdef STEP_FIVE
-	/* float maxL[NUM_PEAKS] = { 0 }; */
-	/* float maxR[NUM_PEAKS] = { 0 }; */
-
-	/* uint16_t indexR[NUM_PEAKS] = { 0 }; */
-	/* uint16_t indexL[NUM_PEAKS] = { 0 }; */
 
 	uint16_t indexR = 0;
 	uint16_t indexL = 0;
 
-	/* float peakR[NUM_PEAKS] = { 0 }; */
-	/* float peakL[NUM_PEAKS] = { 0 }; */
-
 	float peakR = 0;
 	float peakL = 0;
-#endif
-#ifdef STEP_SIX
+
 	uint16_t num_peaks = 0;
 	uint16_t maxIndex[BUFFER_COUNT/2] = { 0 };
-#endif
 
 	for(i = 0;i < BUFFER_COUNT;i++) { // extract data to float buffers
-#ifdef STEP_SIX
-	  Input_Total[i].re = *pBuf + *(pBuf + 1); // Sum left and right signal
+
+	  // Sum left and right signal
+	  Input_Total[i].re = *pBuf + *(pBuf + 1);
 	  Input_Total[i].im = 0.0;
-#endif
 
-#ifdef STEP_FOUR_RIGHT
-		// Store input in real part of COMPLEX typedef before increment
-		Input_Right[i].re = *pBuf;
-		Input_Right[i].im = 0.0;
-#endif
-		*pR++ = *pBuf++;
+	  // Store input in real part of COMPLEX typedef before increment
+	  Input_Right[i].re = *pBuf;
+	  Input_Right[i].im = 0.0;
 
-#ifdef STEP_FOUR_LEFT
-		// Store input in real part of COMPLEX typedef before increment
-		Input_Left[i].re = *pBuf;
-		Input_Left[i].im = 0.0;
-#endif
-		*pL++ = *pBuf++;
+	  // Increment buffer pointer and right pointer (left and right interwoven)
+	  *pR++ = *pBuf++;
+
+	  // Store input in real part of COMPLEX typedef before increment
+	  Input_Left[i].re = *pBuf;
+	  Input_Left[i].im = 0.0;
+
+	  // Increment buffer pointer and left pointer (left and right interwoven)
+	  *pL++ = *pBuf++;
+
 	}
 
 	WriteDigitalOutputs(0); // set digital outputs low - for time measurement
 
-	pL = Left; // reinitialize pointers
-	pR = Right;
-
-	/* Your code goes here */
-	// Perform some statistical analysis
-	for(i = 0;i < BUFFER_COUNT;i++) { // extract data to float buffers
-#ifdef STEP_THREE
-		// Add to sum
-		sumR += *pR;
-		sumL += *pL;
-
-		// Calculate min
-		minR = minR > *pR ? *pR : minR;
-		minL = minL > *pL ? *pL : minL;
-#endif
-		// Calculate max
-		maxR = maxR < *pR ? *pR : maxR;
-		maxL = maxL < *pL ? *pL : maxL;
-
-#ifdef STEP_THREE
-		// Sum magnitude
-		averageMagR += abs(*pR);
-		averageMagL += abs(*pL);
-#endif
-
-		// Increment pointer
-		*pR++;
-		*pL++;
-	}
-#ifdef STEP_THREE
-	// Calculate mean
-	meanR = sumR / BUFFER_COUNT;
-	meanL = sumL / BUFFER_COUNT;
-
-	// Calculate average magnitude
-	averageMagR /= BUFFER_COUNT;
-	averageMagL /= BUFFER_COUNT;
-
-	// Reset right and left buffer pointers
-	pR = Right;
+	// reinitialize pointers
 	pL = Left;
+	pR = Right;
 
-	for(i = 0;i < BUFFER_COUNT;i++) { // extract data to float buffers
-		varianceR += (*pR - meanR) * (*pR - meanR);
-		varianceL += (*pL - meanL) * (*pL - meanL);
-	}
+	/********* END PRE FFT *********/
 
-	varianceR /= BUFFER_COUNT;
-	varianceL /= BUFFER_COUNT;
+	// Compute FFT's
+	fft_c(BUFFER_COUNT, Input_Left, twiddle_factors);   // Input Left
+	fft_c(BUFFER_COUNT, Input_Right, twiddle_factors);  // Input Right
+	fft_c(BUFFER_COUNT, Input_Total, twiddle_factors);  // Input Total
 
-#elif defined(STEP_FOUR)
-
-	// Compute fft
-#ifdef STEP_FOUR_LEFT
-	fft_c(BUFFER_COUNT, Input_Left, twiddle_factors);
-#endif
-#ifdef STEP_FOUR_RIGHT
-	fft_c(BUFFER_COUNT, Input_Right, twiddle_factors);
-#endif
-#ifdef STEP_SIX
-	fft_c(BUFFER_COUNT, Input_Total, twiddle_factors);
-#endif
-
-
+	/********* BEGIN POST FFT *********/
 
 	// Calculate magnitudes of outputs
 	for(i = 0;i < BUFFER_COUNT;i++) {
 
-#ifdef STEP_SIX
+	  // Calculate signal magnitudes (
 	  Output_Magnitude_Total[i] = pow(pow(Input_Total[i].re, 2.0) + pow(Input_Total[i].im, 2.0), 0.5);
-#endif
-#ifdef STEP_FOUR_LEFT
-		Output_Magnitude_Left[i] = pow(pow(Input_Left[i].re, 2.0) + pow(Input_Left[i].im, 2.0), 0.5);
-#endif
-#ifdef STEP_FOUR_RIGHT
-		Output_Magnitude_Right[i] = pow(pow(Input_Right[i].re, 2.0) + pow(Input_Right[i].im, 2.0), 0.5);
-#endif
-#ifdef STEP_FIVE
-#ifdef STEP_FOUR_LEFT
-		maxL = maxL < Output_Magnitude_Left[i] ? Output_Magnitude_Left[i] : maxL;
-		indexL = maxL == Output_Magnitude_Left[i] ? i : indexL;
-#endif
-#ifdef STEP_FOUR_RIGHT
-		maxR = maxR < Output_Magnitude_Right[i] ? Output_Magnitude_Right[i] : maxR;
-		indexR = maxR == Output_Magnitude_Right[i] ? i : indexR;
-#endif
-#endif
-	}
-#endif
+	  Output_Magnitude_Left[i] = pow(pow(Input_Left[i].re, 2.0) + pow(Input_Left[i].im, 2.0), 0.5);
+	  Output_Magnitude_Right[i] = pow(pow(Input_Right[i].re, 2.0) + pow(Input_Right[i].im, 2.0), 0.5);
 
+	  // Store max values and indices for left input signal
+	  maxL = maxL < Output_Magnitude_Left[i] ? Output_Magnitude_Left[i] : maxL;
+	  indexL = maxL == Output_Magnitude_Left[i] ? i : indexL;
+
+	  // Store max values and indices for right input signal
+	  maxR = maxR < Output_Magnitude_Right[i] ? Output_Magnitude_Right[i] : maxR;
+	  indexR = maxR == Output_Magnitude_Right[i] ? i : indexR;
+	}
+
+	// If max peak is greater than half way, flip to first half equivalent freq.
 	peakR = (indexR > 512 ? 1024 - indexR : indexR) * (SAMPLING_FREQ / BUFFER_COUNT);
 	peakL = (indexL > 512 ? 1024 - indexL : indexL) * (SAMPLING_FREQ / BUFFER_COUNT);
 
-#ifdef STEP_SIX
 	for(i=1; i < BUFFER_COUNT/2; i++) {
-	  /* if(i == 0 || i == BUFFER_COUNT - 1 || i > BUFFER_COUNT / 2) { */
-	  /*   continue; */
-	  /* } */
-	  // Find local peaks
 	  if(Output_Magnitude_Total[i] > Output_Magnitude_Total[i-1] && Output_Magnitude_Total[i] > Output_Magnitude_Total[i+1]) {
 	    maxIndex[num_peaks] = i;
 	    num_peaks += 1;
@@ -412,10 +315,9 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
 
 	float peakOne = Output_Magnitude_Total[maxIndex[0]];
 	float peakTwo = Output_Magnitude_Total[maxIndex[1]];
-#endif
 
 
-/* Your code should be done by here */
+	/* Your code should be done by here */
 	pBuf = buffer[ready_index];
 	pL = Left;
 	pR = Right;
