@@ -194,97 +194,40 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
 ///////////////////////////////////////////////////////////////////////
 {
 	Int16 *pBuf = buffer[ready_index];
-	static float Left[BUFFER_COUNT], Right[BUFFER_COUNT];
-	float *pL = Left, *pR = Right;
 	Int32 i;
 
 	// Used for peak finding
-	float maxL = *pL;
-	float maxR = *pR; // Used for p
-
-	// Right values
-	float meanR=0;
-	float minR=*pR;
-	float varianceR=0;
-	float averageMagR=0;
-
-	// Left values
-	float sumL=0;
-	float meanL=0;
-	float minL=*pL;
-	float varianceL=0;
-	float averageMagL=0;
-
-	uint16_t indexR = 0;
-	uint16_t indexL = 0;
-
-	float peakR = 0;
-	float peakL = 0;
-
 	uint16_t num_peaks = 0;
-	uint16_t maxIndex[BUFFER_COUNT/2] = { 0 };
+	uint16_t peakIndices[BUFFER_COUNT/2] = { 0 };
 
+	// Extract data from signal
 	for(i = 0;i < BUFFER_COUNT;i++) { // extract data to float buffers
 
 	  // Sum left and right signal
 	  Input_Total[i].re = *pBuf + *(pBuf + 1);
 	  Input_Total[i].im = 0.0;
 
-	  // Store input in real part of COMPLEX typedef before increment
-	  Input_Right[i].re = *pBuf;
-	  Input_Right[i].im = 0.0;
-
-	  // Increment buffer pointer and right pointer (left and right interwoven)
-	  *pR++ = *pBuf++;
-
-	  // Store input in real part of COMPLEX typedef before increment
-	  Input_Left[i].re = *pBuf;
-	  Input_Left[i].im = 0.0;
-
-	  // Increment buffer pointer and left pointer (left and right interwoven)
-	  *pL++ = *pBuf++;
-
+	  *pBuf += 2;
 	}
 
 	WriteDigitalOutputs(0); // set digital outputs low - for time measurement
 
-	// reinitialize pointers
-	pL = Left;
-	pR = Right;
-
 	/********* END PRE FFT *********/
 
 	// Compute FFT's
-	fft_c(BUFFER_COUNT, Input_Left, twiddle_factors);   // Input Left
-	fft_c(BUFFER_COUNT, Input_Right, twiddle_factors);  // Input Right
 	fft_c(BUFFER_COUNT, Input_Total, twiddle_factors);  // Input Total
 
 	/********* BEGIN POST FFT *********/
 
-	// Calculate magnitudes of outputs
+	// Calculate magnitudes of FFT
 	for(i = 0;i < BUFFER_COUNT;i++) {
-
-	  // Calculate signal magnitudes (
 	  Output_Magnitude_Total[i] = pow(pow(Input_Total[i].re, 2.0) + pow(Input_Total[i].im, 2.0), 0.5);
-	  Output_Magnitude_Left[i] = pow(pow(Input_Left[i].re, 2.0) + pow(Input_Left[i].im, 2.0), 0.5);
-	  Output_Magnitude_Right[i] = pow(pow(Input_Right[i].re, 2.0) + pow(Input_Right[i].im, 2.0), 0.5);
-
-	  // Store max values and indices for left input signal
-	  maxL = maxL < Output_Magnitude_Left[i] ? Output_Magnitude_Left[i] : maxL;
-	  indexL = maxL == Output_Magnitude_Left[i] ? i : indexL;
-
-	  // Store max values and indices for right input signal
-	  maxR = maxR < Output_Magnitude_Right[i] ? Output_Magnitude_Right[i] : maxR;
-	  indexR = maxR == Output_Magnitude_Right[i] ? i : indexR;
 	}
 
-	// If max peak is greater than half way, flip to first half equivalent freq.
-	peakR = (indexR > 512 ? 1024 - indexR : indexR) * (SAMPLING_FREQ / BUFFER_COUNT);
-	peakL = (indexL > 512 ? 1024 - indexL : indexL) * (SAMPLING_FREQ / BUFFER_COUNT);
-
+	// Find all peaks (Identified by being greater than both neighboring magnitudes
 	for(i=1; i < BUFFER_COUNT/2; i++) {
 	  if(Output_Magnitude_Total[i] > Output_Magnitude_Total[i-1] && Output_Magnitude_Total[i] > Output_Magnitude_Total[i+1]) {
-	    maxIndex[num_peaks] = i;
+	    peakIndices[num_peaks] = i;
 	    num_peaks += 1;
 	  }
 	}
@@ -294,42 +237,29 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
 	uint16_t localMaxIndex = 0;
 	uint16_t localMaxTemp = 0;
 
-	// Bubble sort... cause it's quick and simple...
-	for(j=0; j<2; j++) {
+	// Bubble sort... cause it's quick and simple... to write...
+	for(j=0; j < num_peaks; j++) {
 	  localMax = 0;
 	  localMaxIndex = 0;
 
 	  // Find max
-	  for(i=j; i<num_peaks; i++) {
-	    if(Output_Magnitude_Total[maxIndex[i]] > localMax) {
-	      localMax = Output_Magnitude_Total[maxIndex[i]];
+	  for(i=j; i < num_peaks; i++) {
+	    if(Output_Magnitude_Total[peakIndices[i]] > localMax) {
+	      localMax = Output_Magnitude_Total[peakIndices[i]];
 	      localMaxIndex = i;
 	    }
 	  }
 
 	  // Swap with jth item
-	  localMaxTemp = maxIndex[j];
-	  maxIndex[j] = maxIndex[localMaxIndex];
-	  maxIndex[localMaxIndex] = localMaxTemp;
+	  localMaxTemp = peakIndices[j];
+	  peakIndices[j] = peakIndices[localMaxIndex];
+	  peakIndices[localMaxIndex] = localMaxTemp;
 	}
 
-	float peakOne = Output_Magnitude_Total[maxIndex[0]];
-	float peakTwo = Output_Magnitude_Total[maxIndex[1]];
-
+	float peakOne = Output_Magnitude_Total[peakIndices[0]];
+	float peakTwo = Output_Magnitude_Total[peakIndices[1]];
 
 	/* Your code should be done by here */
-	pBuf = buffer[ready_index];
-	pL = Left;
-	pR = Right;
-
-
-	for(i = 0;i < BUFFER_COUNT;i++) { // pack into buffer after bounding
-		*pBuf++ = _spint(*pR++ * 65536) >> 16;
-		*pBuf++ = _spint(*pL++ * 65536) >> 16;
-	}
-
-	pBuf = buffer[ready_index];
-
 	WriteDigitalOutputs(1); // set digital output bit 0 high - for time measurement
 	buffer_ready = 0; // signal we are done
 }
