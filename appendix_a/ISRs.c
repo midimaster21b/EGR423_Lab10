@@ -31,14 +31,6 @@ volatile Int16 buffer_ready = 0, over_run = 0, ready_index = 0;
 #define EDMA_CONFIG_INTERRUPT_MASK			1	// interrupt on rx reload only
 
 extern COMPLEX Twiddle_Factors[];
-static COMPLEX Input_Left[BUFFER_COUNT] = { 0 };
-static float Output_Magnitude_Left[BUFFER_COUNT] = { 0 };
-
-#pragma DATA_SECTION (Input_Right, "CE0"); // allocate buffers in SDRAM
-static COMPLEX Input_Right[BUFFER_COUNT] = { 0 };
-
-#pragma DATA_SECTION (Output_Magnitude_Right, "CE0"); // allocate buffers in SDRAM
-static float Output_Magnitude_Right[BUFFER_COUNT] = { 0 };
 
 #pragma DATA_SECTION (Input_Total, "CE0"); // allocate buffers in SDRAM
 static COMPLEX Input_Total[BUFFER_COUNT] = { 0 }; // Summed left & right inputs
@@ -255,9 +247,6 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
 	  peakIndices[j] = peakIndices[localMaxIndex];
 	  peakIndices[localMaxIndex] = localMaxTemp;
 	}
-
-	float peakOne = Output_Magnitude_Total[peakIndices[0]];
-	float peakTwo = Output_Magnitude_Total[peakIndices[1]];
 
 	/* Your code should be done by here */
 	WriteDigitalOutputs(1); // set digital output bit 0 high - for time measurement
