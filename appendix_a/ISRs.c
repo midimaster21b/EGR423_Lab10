@@ -5,23 +5,13 @@
 //
 ///////////////////////////////////////////////////////////////////////
 
+#include <stdio.h>
 #include "math.h"
 #include "DSP_Config.h"
 #include "config.h"
 #include "frames.h"
 #include "fft.h"
 #include "waveforms.h"
-
-/* #define ENCODER */
-/* #define DECODER */
-
-#ifdef ENCODER
-#define CODEC_ISR Codec_ISR
-#endif
-
-#ifdef DECODER
-#define CODEC_ISR Not_Codec_ISR
-#endif
 
 #pragma DATA_SECTION (buffer, "CE0"); // allocate buffers in SDRAM
 Int16 buffer[NUM_BUFFERS][BUFFER_LENGTH];
@@ -50,6 +40,8 @@ static COMPLEX Input_Total[BUFFER_COUNT] = { 0 }; // Summed left & right inputs
 
 #pragma DATA_SECTION (Output_Magnitude_Total, "CE0"); // allocate buffers in SDRAM
 static float Output_Magnitude_Total[BUFFER_COUNT] = { 0 };
+
+uint16_t max_peak = 0;
 
 /* ENCODER GLOBALS */
 #define LEFT  0
@@ -219,17 +211,23 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
   uint16_t num_peaks = 0;
   uint16_t peakIndices[BUFFER_COUNT/2] = { 0 };
 
+  float real_component, imag_component;
+
+  WriteDigitalOutputs(0); // set digital outputs low - for time measurement
+
   // Extract data from signal
   for(i = 0;i < BUFFER_COUNT;i++) { // extract data to float buffers
 
     // Sum left and right signal
-    Input_Total[i].re = *pBuf + *(pBuf + 1);
+    /* Input_Total[i].re = *pBuf + *(pBuf + 1); */
+
+    Input_Total[i].re = *pBuf;
     Input_Total[i].im = 0.0;
 
-    *pBuf += 2;
+    pBuf++;
+    pBuf++;
   }
 
-  // WriteDigitalOutputs(0); // set digital outputs low - for time measurement
 
   /********* END PRE FFT *********/
 
@@ -240,7 +238,9 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
 
   // Calculate magnitudes of FFT
   for(i = 0;i < BUFFER_COUNT;i++) {
-    Output_Magnitude_Total[i] = pow(pow(Input_Total[i].re, 2.0) + pow(Input_Total[i].im, 2.0), 0.5);
+    real_component = Input_Total[i].re * Input_Total[i].re;
+    imag_component = Input_Total[i].im * Input_Total[i].im;
+    Output_Magnitude_Total[i] = pow( real_component + imag_component, 0.5);
   }
 
   // Find all peaks (Identified by being greater than both neighboring magnitudes
@@ -252,7 +252,7 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
   }
 
   uint16_t j = 0;
-  uint16_t localMax = 0;
+  float localMax = 0;
   uint16_t localMaxIndex = 0;
   uint16_t localMaxTemp = 0;
 
@@ -275,8 +275,13 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
     peakIndices[localMaxIndex] = localMaxTemp;
   }
 
+  if(peakIndices[0] != max_peak) {
+    max_peak = peakIndices[0];
+    /* printf("New peak index detected: %d\n", max_peak); */
+  }
+
   /* Your code should be done by here */
-  // WriteDigitalOutputs(1); // set digital output bit 0 high - for time measurement
+  WriteDigitalOutputs(1); // set digital output bit 0 high - for time measurement
   buffer_ready = 0; // signal we are done
 }
 

@@ -13,6 +13,7 @@
 #define NUM_SAMPLES ((SAMPLING_FREQUENCY / SAMPLED_LUT_FREQUENCY) / 2)
 #define MAX_WAVEFORM_INDEX ((NUM_SAMPLES) * 2)
 #define NUM_OUTPUT_FREQS 2
+#define NUM_DETECTED_PEAKS 1
 
 typedef enum wave_type
 {
