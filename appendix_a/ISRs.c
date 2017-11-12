@@ -7,8 +7,21 @@
 
 #include "math.h"
 #include "DSP_Config.h"
+#include "config.h"
 #include "frames.h"
 #include "fft.h"
+#include "waveforms.h"
+
+/* #define ENCODER */
+#define DECODER
+
+#ifdef ENCODER
+#define CODEC_ISR Codec_ISR
+#endif
+
+#ifdef DECODER
+#define CODEC_ISR Not_Codec_ISR
+#endif
 
 #pragma DATA_SECTION (buffer, "CE0"); // allocate buffers in SDRAM
 Int16 buffer[NUM_BUFFERS][BUFFER_LENGTH];
@@ -37,6 +50,32 @@ static COMPLEX Input_Total[BUFFER_COUNT] = { 0 }; // Summed left & right inputs
 
 #pragma DATA_SECTION (Output_Magnitude_Total, "CE0"); // allocate buffers in SDRAM
 static float Output_Magnitude_Total[BUFFER_COUNT] = { 0 };
+
+/* ENCODER GLOBALS */
+#define LEFT  0
+#define RIGHT 1
+
+volatile union {
+	Uint32 UINT;
+	Int16 Channel[2];
+} CodecDataIn, CodecDataOut;
+
+/* add any global variables here */
+#ifdef STEP_TWO
+static float inMax = 0.0;
+static float inMin = 0.0;
+#endif
+
+//static float output_frequency = 5523.0;
+static float output_frequency = 1000.0;
+static float running_waveform_index = 0.0;
+static float outputGain = 15000;
+
+static wavetype_t waveTypeLeft = SINE_WAVE;
+static wavetype_t waveTypeRight = COS_WAVE;
+//static wavetype_t waveTypeRight = SQUARE_WAVE;
+
+
 
 void EDMA_Init()
 ////////////////////////////////////////////////////////////////////////
@@ -305,4 +344,87 @@ interrupt void EDMA_ISR()
 	if(buffer_ready == 1) // set a flag if buffer isn't processed in time
 		over_run = 1;
 	buffer_ready = 1; // mark buffer as ready for processing
+}
+
+interrupt void CODEC_ISR()
+///////////////////////////////////////////////////////////////////////
+// Purpose:   Codec interface interrupt service routine
+//
+// Input:     None
+//
+// Returns:   Nothing
+//
+// Calls:     CheckForOverrun, ReadCodecData, WriteCodecData
+//
+// Notes:     None/
+//////////////////////////////////////////////////////////////////////
+{
+  /* add any local variables here */
+  float xLeft, xRight, yLeft, yRight;
+
+  float outputSignal_sine = 0.0; // Handles signal generator output
+  float waveform_step_size = output_frequency / SAMPLED_LUT_FREQUENCY;
+
+  if(CheckForOverrun())					// overrun error occurred (i.e. halted DSP)
+    return;								// so serial port is reset to recover
+
+  CodecDataIn.UINT = ReadCodecData();		// get input data samples
+
+  // this example simply copies sample data from in to out
+  xLeft  = CodecDataIn.Channel[ LEFT];
+  xRight = CodecDataIn.Channel[ RIGHT];
+
+  /* add your code starting here */
+  switch(waveTypeLeft) {
+    case SINE_WAVE:
+      yLeft = outputGain * sine_wave(running_waveform_index);
+      break;
+
+    case COS_WAVE:
+      yLeft = outputGain * cosine_wave(running_waveform_index);
+      break;
+
+    case SQUARE_WAVE:
+      yLeft = outputGain * square_wave(running_waveform_index);
+      break;
+
+    case SAWTOOTH_WAVE:
+      yLeft = outputGain * sawtooth_wave(running_waveform_index);
+      break;
+    }
+
+  switch(waveTypeRight) {
+    case SINE_WAVE:
+      yRight = outputGain * sine_wave(running_waveform_index);
+      break;
+
+    case COS_WAVE:
+      yRight = outputGain * cosine_wave(running_waveform_index);
+      break;
+
+    case SQUARE_WAVE:
+      yRight = outputGain * square_wave(running_waveform_index);
+      break;
+
+    case SAWTOOTH_WAVE:
+      yRight = outputGain * sawtooth_wave(running_waveform_index);
+      break;
+    }
+
+  // Update state for next iteration
+  // Update current waveform index position
+  running_waveform_index += waveform_step_size;
+
+  // Wrap around if index goes too high
+  if(running_waveform_index >= MAX_WAVEFORM_INDEX) {
+    running_waveform_index -= MAX_WAVEFORM_INDEX;
+  }
+
+
+  CodecDataOut.Channel[ LEFT] = yLeft;
+  CodecDataOut.Channel[RIGHT] = yRight;
+
+  /* end your code here */
+
+  WriteCodecData(CodecDataOut.UINT);		// send output data to port
 }
