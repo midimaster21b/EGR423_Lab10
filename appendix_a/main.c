@@ -21,6 +21,8 @@ int main()
   // Compute twiddle factors
   init_W(NUM_TWIDDLE_FACTORS, Twiddle_Factors);
 
+  DSP_Init();
+
   // initialize EDMA controller
   EDMA_Init();
 
