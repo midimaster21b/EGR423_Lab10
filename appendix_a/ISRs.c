@@ -13,7 +13,7 @@
 #include "waveforms.h"
 
 /* #define ENCODER */
-#define DECODER
+/* #define DECODER */
 
 #ifdef ENCODER
 #define CODEC_ISR Codec_ISR
@@ -61,21 +61,9 @@ volatile union {
 } CodecDataIn, CodecDataOut;
 
 /* add any global variables here */
-#ifdef STEP_TWO
-static float inMax = 0.0;
-static float inMin = 0.0;
-#endif
-
-//static float output_frequency = 5523.0;
-static float output_frequency = 1000.0;
-static float running_waveform_index = 0.0;
-static float outputGain = 15000;
-
-static wavetype_t waveTypeLeft = SINE_WAVE;
-static wavetype_t waveTypeRight = COS_WAVE;
-//static wavetype_t waveTypeRight = SQUARE_WAVE;
-
-
+static float output_frequencies[NUM_OUTPUT_FREQS] = {1000.0, 1300.0};
+static float running_waveform_indices[NUM_OUTPUT_FREQS] = { 0.0 };
+static float output_gain = 15000;
 
 void EDMA_Init()
 ////////////////////////////////////////////////////////////////////////
@@ -241,7 +229,7 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
     *pBuf += 2;
   }
 
-  WriteDigitalOutputs(0); // set digital outputs low - for time measurement
+  // WriteDigitalOutputs(0); // set digital outputs low - for time measurement
 
   /********* END PRE FFT *********/
 
@@ -288,7 +276,7 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
   }
 
   /* Your code should be done by here */
-  WriteDigitalOutputs(1); // set digital output bit 0 high - for time measurement
+  // WriteDigitalOutputs(1); // set digital output bit 0 high - for time measurement
   buffer_ready = 0; // signal we are done
 }
 
@@ -346,7 +334,7 @@ interrupt void EDMA_ISR()
   buffer_ready = 1; // mark buffer as ready for processing
 }
 
-interrupt void CODEC_ISR()
+interrupt void Codec_ISR()
 ///////////////////////////////////////////////////////////////////////
 // Purpose:   Codec interface interrupt service routine
 //
@@ -360,68 +348,33 @@ interrupt void CODEC_ISR()
 //////////////////////////////////////////////////////////////////////
 {
   /* add any local variables here */
-  float xLeft, xRight, yLeft, yRight;
+  float output_signal = 0.0;
+  uint8_t i;
+  float waveform_step_size;
 
-  float outputSignal_sine = 0.0; // Handles signal generator output
-  float waveform_step_size = output_frequency / SAMPLED_LUT_FREQUENCY;
+  if(CheckForOverrun())	// overrun error occurred (i.e. halted DSP)
+    return;             // so serial port is reset to recover
 
-  if(CheckForOverrun())					// overrun error occurred (i.e. halted DSP)
-    return;								// so serial port is reset to recover
+  for(i=0; i<NUM_OUTPUT_FREQS; i++) {
+    // Calculate the appropriate step size
+    waveform_step_size = output_frequencies[i] / SAMPLED_LUT_FREQUENCY;
 
-  CodecDataIn.UINT = ReadCodecData();		// get input data samples
+    // Add the current freq signal to the total output signal
+    output_signal += sine_wave(running_waveform_indices[i]);
 
-  // this example simply copies sample data from in to out
-  xLeft  = CodecDataIn.Channel[ LEFT];
-  xRight = CodecDataIn.Channel[ RIGHT];
+    // Increment by step size
+    running_waveform_indices[i] += waveform_step_size;
 
-  /* add your code starting here */
-  switch(waveTypeLeft) {
-  case SINE_WAVE:
-    yLeft = outputGain * sine_wave(running_waveform_index);
-    break;
-
-  case COS_WAVE:
-    yLeft = outputGain * cosine_wave(running_waveform_index);
-    break;
-
-  case SQUARE_WAVE:
-    yLeft = outputGain * square_wave(running_waveform_index);
-    break;
-
-  case SAWTOOTH_WAVE:
-    yLeft = outputGain * sawtooth_wave(running_waveform_index);
-    break;
+    // Wrap around if index goes too high
+    if(running_waveform_indices[i] >= MAX_WAVEFORM_INDEX) {
+      running_waveform_indices[i] -= MAX_WAVEFORM_INDEX;
+    }
   }
 
-  switch(waveTypeRight) {
-  case SINE_WAVE:
-    yRight = outputGain * sine_wave(running_waveform_index);
-    break;
+  output_signal *= output_gain;
 
-  case COS_WAVE:
-    yRight = outputGain * cosine_wave(running_waveform_index);
-    break;
-
-  case SQUARE_WAVE:
-    yRight = outputGain * square_wave(running_waveform_index);
-    break;
-
-  case SAWTOOTH_WAVE:
-    yRight = outputGain * sawtooth_wave(running_waveform_index);
-    break;
-  }
-
-  // Update state for next iteration
-  // Update current waveform index position
-  running_waveform_index += waveform_step_size;
-
-  // Wrap around if index goes too high
-  if(running_waveform_index >= MAX_WAVEFORM_INDEX) {
-    running_waveform_index -= MAX_WAVEFORM_INDEX;
-  }
-
-  CodecDataOut.Channel[ LEFT] = yLeft;
-  CodecDataOut.Channel[RIGHT] = yRight;
+  CodecDataOut.Channel[ LEFT] = output_signal;
+  CodecDataOut.Channel[RIGHT] = output_signal;
 
   /* end your code here */
 
