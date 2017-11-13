@@ -12,6 +12,7 @@
 #include "frames.h"
 #include "fft.h"
 #include "waveforms.h"
+#include "dtfm.h"
 
 #pragma DATA_SECTION (buffer, "CE0"); // allocate buffers in SDRAM
 Int16 buffer[NUM_BUFFERS][BUFFER_LENGTH];
@@ -42,6 +43,8 @@ static COMPLEX Input_Total[BUFFER_COUNT] = { 0 }; // Summed left & right inputs
 static float Output_Magnitude_Total[BUFFER_COUNT] = { 0 };
 
 uint16_t max_peak = 0;
+
+char detected_char = '0';
 
 /* ENCODER GLOBALS */
 #define LEFT  0
@@ -279,6 +282,11 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
     max_peak = peakIndices[0];
     /* printf("New peak index detected: %d\n", max_peak); */
   }
+
+  float dtfm_freq_one = peakIndices[0] * (SAMPLING_FREQUENCY / NUM_SAMPLES);
+  float dtfm_freq_two = peakIndices[1] * (SAMPLING_FREQUENCY / NUM_SAMPLES);
+
+  detected_char = determine_character(dtfm_freq_one, dtfm_freq_two);
 
   /* Your code should be done by here */
   WriteDigitalOutputs(1); // set digital output bit 0 high - for time measurement
