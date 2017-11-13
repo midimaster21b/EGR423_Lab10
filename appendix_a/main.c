@@ -8,6 +8,7 @@
 #include "DSP_Config.h"
 #include "frames.h"
 #include "fft.h"
+#include "config.h"
 
 #define NUM_TWIDDLE_FACTORS BUFFER_COUNT
 
@@ -25,15 +26,19 @@ int main()
   DSP_Init();
   #endif
 
+  #ifdef DECODER
   // initialize EDMA controller
   EDMA_Init();
 
   // initialize DSP for EDMA operation
   DSP_Init_EDMA();
+  #endif
 
   // main loop here, process buffer when ready
   while(1) {
+    #ifdef DECODER
     if(IsBufferReady()) // process buffers in background
       ProcessBuffer(Twiddle_Factors);
+    #endif
   }
 }

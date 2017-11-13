@@ -15,6 +15,9 @@
 #define NUM_OUTPUT_FREQS 2
 #define NUM_DETECTED_PEAKS 1
 
+#define DECODER
+
+
 typedef enum wave_type
 {
 	SINE_WAVE,
