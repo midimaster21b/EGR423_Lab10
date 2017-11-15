@@ -10,6 +10,7 @@
 
     .ref    _c_int00
     .ref    _Codec_ISR        
+    .ref    _EDMA_ISR       
   
     .sect   "vectors"
 	.nocmp	; do not allow 16 bit instructions to be used in the vector table
@@ -79,7 +80,7 @@ INT7:   b INT7	; stall here if interrupt occurs
 	NOP
 	NOP
 	NOP
-INT8:   b INT8	; stall here if interrupt occurs
+INT8:   b _EDMA_ISR	; stall here if interrupt occurs
 	NOP
 	NOP
 	NOP
