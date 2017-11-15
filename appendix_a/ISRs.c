@@ -283,8 +283,8 @@ void ProcessBuffer(COMPLEX *twiddle_factors)
     /* printf("New peak index detected: %d\n", max_peak); */
   }
 
-  float dtfm_freq_one = 2 * peakIndices[0] * (SAMPLING_FREQUENCY / (NUM_SAMPLES));
-  float dtfm_freq_two = 2 * peakIndices[1] * (SAMPLING_FREQUENCY / (NUM_SAMPLES));
+  float dtfm_freq_one = peakIndices[0] * (SAMPLING_FREQUENCY / NUM_FFT_SAMPLES);
+  float dtfm_freq_two = peakIndices[1] * (SAMPLING_FREQUENCY / NUM_FFT_SAMPLES);
 
   detected_char = determine_character(dtfm_freq_one, dtfm_freq_two);
 
