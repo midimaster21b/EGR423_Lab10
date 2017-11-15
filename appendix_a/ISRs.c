@@ -368,7 +368,9 @@ interrupt void Codec_ISR()
   if(CheckForOverrun())	// overrun error occurred (i.e. halted DSP)
     return;             // so serial port is reset to recover
 
-  // for(i=0; i<NUM_OUTPUT_FREQS; i++) {
+  CodecDataIn.UINT = ReadCodecData(); // THIS LINE IS CRUCIAL. WILL NOT RUN WITHOUT.
+
+  for(i=0; i<NUM_OUTPUT_FREQS; i++) {
     // Calculate the appropriate step size
     waveform_step_size = output_frequencies[i] / SAMPLED_LUT_FREQUENCY;
 
@@ -382,7 +384,7 @@ interrupt void Codec_ISR()
     if(running_waveform_indices[i] >= MAX_WAVEFORM_INDEX) {
       running_waveform_indices[i] -= MAX_WAVEFORM_INDEX;
     }
-  // }
+  }
 
   output_signal *= output_gain;
 
