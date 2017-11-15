@@ -12,16 +12,20 @@
 #define DSP_CONFIG_H_INCLUDED
 
 #include "OMAPL138_Support_DSP.h"  
-
+#include "../appendix_a/config.h"
 // uncomment just the line for the sample rate when using the OMAP-L138
+
+#ifdef ENCODER
 #define SampleRateSetting 		AIC3106Fs48kHz		// 48kHz sample rate
+#endif
 //#define SampleRateSetting 		AIC3106Fs96kHz		// 96kHz sample rate
 //#define SampleRateSetting 		AIC3106Fs32kHz		// 32kHz sample rate
 //#define SampleRateSetting 		AIC3106Fs24kHz		// 24kHz sample rate
 //#define SampleRateSetting 		AIC3106Fs16kHz		// 16kHz sample rate
 //#define SampleRateSetting 		AIC3106Fs12kHz		// 12kHz sample rate
-//#define SampleRateSetting 		AIC3106Fs8kHz		//  8kHz sample rate
-
+#ifdef DECODER
+#define SampleRateSetting 		AIC3106Fs8kHz		//  8kHz sample rate
+#endif
 
 
 #endif
