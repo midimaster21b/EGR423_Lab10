@@ -16,17 +16,17 @@ COMPLEX Twiddle_Factors[NUM_TWIDDLE_FACTORS] = { 0 };
 
 int main()
 {
+  #ifdef ENCODER
+  DSP_Init();
+  #endif
+
+  #ifdef DECODER
   // initialize all buffers to 0
   ZeroBuffers();
 
   // Compute twiddle factors
   init_W(NUM_TWIDDLE_FACTORS, Twiddle_Factors);
 
-  #ifdef ENCODER
-  DSP_Init();
-  #endif
-
-  #ifdef DECODER
   // initialize EDMA controller
   EDMA_Init();
 
